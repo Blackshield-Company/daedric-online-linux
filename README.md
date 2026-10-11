@@ -21,11 +21,15 @@ bit — launch with **`UMU_USE_STEAM=1`** so GE keeps its `lsteamclient` bridge
 enabled. Without that env var, the game dies silently at the
 `steamclient64.dll` load.
 
-That env var is the fix when `$HOME` is `/home/<user>`. On Fedora Atomic
-(Bazzite, Silverblue, Kinoite) `umu-run` still leaves the Steam install path
-empty — the launcher opens and Skyrim never spawns. Do not keep retrying
-Step 4 if the log says `path /var/home`. The working launch is the non-Steam
-shortcut in **Fedora Atomic / Bazzite** below.
+**The umu launch (Step 4: `umu-run` with `UMU_USE_STEAM=1` under
+GE-Proton11-7, in the `umu-489830` prefix) is the primary, default launch
+method on every distro.** Launching through Steam (the launcher added as a
+non-Steam game) is a fallback, **only** for when the umu launch does not
+work — e.g. the log shows `path /var/home` or `steam_install_path ""`, or the
+launcher opens and Skyrim never spawns. This was reported on Fedora Atomic
+(Bazzite, Silverblue, Kinoite). The fallback is not equivalent: launching
+through Steam can let Steam auto-update Skyrim off 1.6.1170. See **Fedora
+Atomic / Bazzite** below for the checklist and the safeguard.
 
 **The build question — the game must end at 1.6.1170.** The launcher's client
 sync (Step 6) *is* the downgrade: its internal downloader is pinned to the
@@ -78,9 +82,10 @@ Caveats:
   layouts and client paths — this is the Linux path, full stop.
 - **Fedora Atomic (Bazzite, Silverblue, Kinoite)**: `$HOME` is
   `/var/home/<user>`, not `/home/<user>`. `umu-run` opens the launcher and
-  never spawns Skyrim (`steam_install_path ""`). Add the launcher exe as a
-  non-Steam game under GE-Proton11-7 instead. Native Steam was the reported
-  case. The downgrade and the mod-manager steps do not change. Section:
+  can fail to spawn Skyrim (`steam_install_path ""`). Try the umu launch
+  first anyway; only if it fails, add the launcher exe as a non-Steam game
+  under GE-Proton11-7 (and lock the app manifest — see that section). Native
+  Steam was the reported case. The downgrade and the mod-manager steps do not change. Section:
   **Fedora Atomic / Bazzite**, after Step 5.
 
 ---
@@ -360,6 +365,12 @@ That does not retire the parked-client message on older builds.
 
 ## Step 4 — Launch the launcher under GE (the exact env)
 
+> **This is the primary, default launch method — use it first, on every
+> distro.** The Steam / non-Steam-shortcut launch in **Fedora Atomic /
+> Bazzite** is only for when this fails (see the "How to tell umu failed"
+> checklist there). It is not an equivalent alternative: launching through
+> Steam can let Steam update Skyrim off 1.6.1170.
+
 ```
 cd "/home/synth/Games/umu/umu-489830/drive_c/Program Files/DaedricOnline"
 
@@ -425,8 +436,43 @@ API, and the main menu comes up.
 
 ## Fedora Atomic / Bazzite — when `umu-run` never spawns the game
 
-Step 4 is the verified path when `$HOME` is `/home/<user>`. It is not the
-path on Fedora Atomic.
+> **Fallback only.** The umu launch (Step 4) is the primary, default method.
+> Use the Steam / non-Steam-shortcut launch below **only if the umu launch
+> doesn't work** — try Step 4 first, even on Fedora Atomic. If umu works,
+> stay on it and skip this section.
+
+**How to tell umu failed** (any one of these, after a launch with the full
+Step 4 env and Steam running):
+
+- the log shows `unable to use parent for game drive, path /var/home`
+- the log shows `setup_steam_files steam_install_path ""`
+- `[S_API] SteamAPI_Init(): Failed to load module ...steamclient64.dll`
+  even though `UMU_USE_STEAM=1` is exported
+- the launcher opens, you press Launch, and Skyrim never spawns
+
+A lone `unable to use parent for game drive, path /home` on its own is
+normal umu noise, not a failure.
+
+> **Warning: launching through Steam can update Skyrim off 1.6.1170.** With
+> the launcher running as a Steam shortcut, Steam can still auto-update
+> Skyrim (app 489830), even with **Only update this game when I launch it**
+> and background downloads disabled. A user on Nobara hit exactly this: the
+> game moved off 1.6.1170, and the result was A-poses and missing textures.
+>
+> Recommended safeguard — lock the app manifest before using this route:
+>
+> ```bash
+> # close Steam fully first, then, in the library holding Skyrim:
+> chmod 444 "<library>/steamapps/appmanifest_489830.acf"
+> # revert only when you intentionally want Steam to update the game:
+> chmod 644 "<library>/steamapps/appmanifest_489830.acf"
+> ```
+>
+> Use Steam **offline mode** as a backup. If Skyrim already updated, re-run
+> Step 7 (`scripts/downgrade-1.6.1170.sh`) to get back to 1.6.1170.
+
+Step 4 is the verified path when `$HOME` is `/home/<user>`. On Fedora Atomic
+it was reported to fail as below.
 
 Field report, not reproduced on the CachyOS machine this guide was written
 from: **Bazzite (Fedora Atomic, KDE), native Steam, Nvidia 2080 Super, umu
@@ -452,7 +498,7 @@ report already had the full Step 4 env.
 A lone `unable to use parent for game drive, path /home` is normal umu noise.
 The signature here is `path /var/home` plus `steam_install_path ""`.
 
-**What worked:** add the launcher exe to Steam as a non-Steam game and let
+**What worked (fallback):** add the launcher exe to Steam as a non-Steam game and let
 Steam's own Proton build the bridge.
 
 1. GE-Proton11-7 must already be in
@@ -466,12 +512,13 @@ Steam's own Proton build the bridge.
    **Force the use of a specific Steam Play compatibility tool** →
    **GE-Proton11-7**.
 4. Launch options: `%command% --no-sandbox`
-5. Press Play on that shortcut.
+5. Close Steam, lock `appmanifest_489830.acf` with `chmod 444` (warning
+   above), start Steam again, then press Play on that shortcut.
 
 Steam fills the compat paths before Proton starts, so the install path is
 no longer empty. Reported result: the game spawned and connected.
 
-This replaces Step 4 and the Step 9 `umu-run` script. It does not replace
+Only when umu has failed, this replaces Step 4 and the Step 9 `umu-run` script. It does not replace
 the downgrade, the mod manager, or the case fixes — those still land in the
 Steam Skyrim the launcher points at. Steam creates its own `compatdata/`
 prefix for the shortcut. Leave it. Log in again if the umu prefix's
@@ -480,7 +527,8 @@ Skyrim.
 
 **Do not press Play on Skyrim Special Edition in the library.** That is the
 Steam app. It will update off 1.6.1170. The non-Steam shortcut is the
-launcher exe only. Rule 7 still applies to the Skyrim app.
+launcher exe only. Rule 7 still applies to the Skyrim app — and even the
+shortcut can let Steam update Skyrim, so keep the manifest locked.
 
 Silverblue, Kinoite, and other ostree spins with home at `/var/home` hit the
 same wall. A normal `/home/<user>` distro stays on Step 4.
@@ -598,8 +646,9 @@ this repo) is the hardened v4:
 - stdio → logfile so Electron's stdio wrapping never hits EBADF
 - the full proven env from Step 4, including `UMU_USE_STEAM=1`
 
-Fedora Atomic: do not use this script. It hits the empty `steam_install_path`
-failure. Use the non-Steam shortcut in **Fedora Atomic / Bazzite**.
+This script is the default launch. Only if it hits the empty
+`steam_install_path` failure (reported on Fedora Atomic), fall back to the
+non-Steam shortcut in **Fedora Atomic / Bazzite**.
 
 ## Updating the launcher from the website
 
@@ -627,7 +676,7 @@ Full procedure, the 2026-10-01 1.3.60 → 1.3.79 check, and what not to touch:
 | Game won't launch at all (launcher does nothing / instant exit) | **Steam client not running** — the launcher's Steam bridge needs the live client, even with `UMU_USE_STEAM=1` | Start Steam first, then launch Daedric |
 | Wine aborts `NtGdiCreateColorSpace` at startup | GE-Proton11-6 (and older) missing the export | Use GE-Proton11-7 |
 | `[S_API] Failed to load module ...steamclient64.dll` then silent exit | `lsteamclient` disabled by GE on umu launches | Export `UMU_USE_STEAM=1` |
-| Launcher opens, Skyrim never spawns; log has `path /var/home` and `steam_install_path ""` | Fedora Atomic home. Proton will not derive a Steam install path from `/var/home`. `UMU_USE_STEAM=1` is already set and does not fill it | Add `Daedric Online.exe` as a non-Steam game, force GE-Proton11-7, launch option `%command% --no-sandbox`. Do not Play the Skyrim library entry. See **Fedora Atomic / Bazzite** |
+| Launcher opens, Skyrim never spawns; log has `path /var/home` and `steam_install_path ""` | Fedora Atomic home. Proton will not derive a Steam install path from `/var/home`. `UMU_USE_STEAM=1` is already set and does not fill it | Fallback only, once umu has failed: add `Daedric Online.exe` as a non-Steam game, force GE-Proton11-7, launch option `%command% --no-sandbox`; `chmod 444` the `appmanifest_489830.acf` first. Do not Play the Skyrim library entry. See **Fedora Atomic / Bazzite** |
 | umu `WARNING: Executable not found` | full `C:\...` path passed | `cd` into launcher dir, pass bare `Daedric Online.exe` |
 | Game dies pre-SKSE with no crash log | almost always the bridge (see above) | `WINEDEBUG=+seh` to see the S_API verdict |
 | "8 required mods missing" panel | client-file sync never completed | let the sync finish; panel says so itself |
@@ -641,7 +690,7 @@ Full procedure, the 2026-10-01 1.3.60 → 1.3.79 check, and what not to touch:
 | Hard crash ~30 s after load, CrashLogger shows `Marker_error:0` BSTriShapes + `Marker_error` BSFadeNodes, `mov r12,[rbp+0x20]` with `rbp=0` | failed loose mesh load at exact case → error substitute; the engine's update pass null-derefs walking the substitute. Vanilla monster: `Skyrim.esm` refs were never audited (starter Iron cuirass both-gender refs shadowed by lowercase loose files) | re-run `python3 scripts/mesh-case-deploy.py` against the five vanilla masters (`--esp Skyrim.esm --esp Update.esm --esp Dawnguard.esm --esp HearthFires.esm --esp Dragonborn.esm`) — deploys the 1,200 lowercase-twin refs at exact case. See Phase 5 in `docs/the-missing-texture-board.md` |
 | Hard crash during load-in (~21 s uptime, before the world spawns), CrashLogger shows `MaleHeadIMF` + `BSFaceGenBaseMorphExtraData` + `QueuedHead`/`BSTaskManagerThread`, crash `mov r12d,[rbp+0x40]` with `rbp=0x10`, `skee64.dll` (RaceMenu) mid-chain | over-broad exact-case twins in the **actor tree** (`meshes/Actors/Character/Character Assets/` head/eyes/faceparts/hair/body/skeleton): they flipped BSA-vanilla fallback → modded-loose content for the FaceGen head build, and RaceMenu's morph walk null-derefs | do **not** re-deploy twins under `meshes/Actors/` — the deploy tool excludes the actor tree by default. Rollback = unlink the exact-case actor twins (366 did it, Phase 5.1). See Phase 5.1 in `docs/the-missing-texture-board.md` |
 | Whole mods absent (armor mod just doesn't exist in game) | installer-option folders deployed raw into `Data/` (Vortex never ran the mod's installer) | reinstall those mods in Vortex and pick the options — launcher closed; see `docs/the-linux-case-war.md` |
-| Game back on 1.7.x after a successful downgrade | launched via Steam client, or Verify clicked | re-run the Step 7 script; keep AutoUpdateBehavior=2, launcher-only entry point |
+| Game back on 1.7.x after a successful downgrade (A-poses, missing textures) | launched via Steam client (including the non-Steam launcher shortcut, even with "only update when I launch" and background downloads off), or Verify clicked | re-run the Step 7 script; keep AutoUpdateBehavior=2, launcher-only entry point; on the Steam-shortcut fallback close Steam and `chmod 444` `<library>/steamapps/appmanifest_489830.acf` (`chmod 644` to update on purpose), offline mode as backup |
 | "N mod files don't match the server" (e.g. CBBE 3BA `3BBB.esp` / `RaceMenuMorphsCBBE.esp`, "was edited", "different version") | launcher verifies tracked esp files against its bundled asar manifest (per-file sha256, canonical archive by md5); a Vortex reinstall with different installer options changed the bytes | extract the manifest-pinned archive entries, hash-verify, patch `Data/` **and** Vortex staging; see `docs/the-mod-verification-gate.md` |
 | Community Shaders: `N shaders failed to compile` / `E5000: unexpected KW_NAMESPACE` (the compile dialog stuck near 0% with hundreds already failed) | Wine's builtin `d3dcompiler_47.dll` (~370 KB stub) can't parse HLSL `namespace`. Failures are instant, not a slow compile. DXVK is innocent | Press Escape to leave the dialog. Deploy the native ~4.9 MB `d3dcompiler_47.dll` from `Data/Platform/Distribution/RuntimeDependencies/` to the prefix game dir **and** `windows/system32/`, add `d3dcompiler_47=n,b` to `WINEDLLOVERRIDES`. Leave the launcher's CS toggle off until both copies are ~4.9 MB. See `docs/the-community-shaders-compiler-war.md` |
 | Launcher: "N mod files don't match" **and** "Revision N required · you have M" at the same time | two gates. The revision number is the running launcher asar. The named esps are bytes ≠ the server pin, usually because the installed collection is the old revision | Restart the launcher once so the pending updater can install (only when the banner says the update is ready — a mid-download restart installs a partial setup). Then update the collection to that revision in the manager that already owns it. Do not install a second manager on the same Data folder. Do not Play Anyway |
@@ -663,9 +712,9 @@ Full procedure, the 2026-10-01 1.3.60 → 1.3.79 check, and what not to touch:
    `docs/the-mod-verification-gate.md` first).
 2. **Never run distro wine against a umu prefix.** On a normal `/home` distro,
    always `umu-run` with the same `PROTONPATH`/env the prefix was created
-   under. On Fedora Atomic the working launch is Steam's Proton via the
-   non-Steam shortcut (**Fedora Atomic / Bazzite**), still GE-Proton11-7 —
-   not distro wine.
+   under. Only if that fails (reported on Fedora Atomic), the fallback is
+   Steam's Proton via the non-Steam shortcut (**Fedora Atomic / Bazzite**),
+   still GE-Proton11-7 — not distro wine.
 3. **Never `pkill -f` a string that appears in your own command line.** Use
    chunked kill lists with explicit PIDs.
 4. **Never click "INSTALL THE COLLECTION" / "GET MODS"** in the launcher — it
@@ -684,9 +733,11 @@ Full procedure, the 2026-10-01 1.3.60 → 1.3.79 check, and what not to touch:
    vanilla-data repair.
 7. **Never launch Skyrim via its Steam library entry, never click Verify
    Integrity, after a downgrade** — both re-pull 1.7.104 and slam the version
-   gate shut. The Fedora Atomic exception is a non-Steam shortcut pointed at
-   `Daedric Online.exe`, not at `SkyrimSE.exe`. Playing the Skyrim app from
-   Steam is still forbidden.
+   gate shut. The only exception is the fallback for a failed umu launch: a
+   non-Steam shortcut pointed at `Daedric Online.exe`, not at `SkyrimSE.exe`,
+   with `appmanifest_489830.acf` locked (`chmod 444`) — Steam can still
+   update Skyrim through the shortcut. Playing the Skyrim app from Steam is
+   still forbidden.
 
 ## File map
 

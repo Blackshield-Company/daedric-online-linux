@@ -51,7 +51,41 @@ Do not go hunting a missing function on 11-7 and call that the fix.
 Retuning the umu environment will not fill that path. This report already
 had the full Step 4 env.
 
-## What worked
+## What worked (fallback only)
+
+> The umu launch (README Step 4) is the primary, default method. Use this
+> Steam route **only if the umu launch doesn't work** — the signature above,
+> or a launcher that opens and never spawns Skyrim. It is not equivalent.
+
+**How to tell umu failed** (any one of these, after a launch with the full
+README Step 4 env and Steam running):
+
+- the log shows `unable to use parent for game drive, path /var/home`
+- the log shows `setup_steam_files steam_install_path ""`
+- `[S_API] SteamAPI_Init(): Failed to load module ...steamclient64.dll`
+  even though `UMU_USE_STEAM=1` is exported
+- the launcher opens, you press Launch, and Skyrim never spawns
+
+A lone `unable to use parent for game drive, path /home` on its own is
+normal umu noise, not a failure.
+
+> **Warning: launching through Steam can update Skyrim off 1.6.1170.** With
+> the launcher running as a Steam shortcut, Steam can still auto-update
+> Skyrim (app 489830), even with **Only update this game when I launch it**
+> and background downloads disabled. A user on Nobara hit exactly this: the
+> game moved off 1.6.1170, and the result was A-poses and missing textures.
+>
+> Recommended safeguard — lock the app manifest before using this route:
+>
+> ```bash
+> # close Steam fully first, then, in the library holding Skyrim:
+> chmod 444 "<library>/steamapps/appmanifest_489830.acf"
+> # revert only when you intentionally want Steam to update the game:
+> chmod 644 "<library>/steamapps/appmanifest_489830.acf"
+> ```
+>
+> Use Steam **offline mode** as a backup. If Skyrim already updated, re-run
+> README Step 7 (`scripts/downgrade-1.6.1170.sh`) to get back to 1.6.1170.
 
 Launch the **launcher exe** through the Steam client as a non-Steam game, so
 Steam fills the compat paths before Proton starts.
@@ -68,12 +102,13 @@ Steam fills the compat paths before Proton starts.
    **Force the use of a specific Steam Play compatibility tool** →
    **GE-Proton11-7**.
 4. Launch options: `%command% --no-sandbox`
-5. Press Play on that shortcut.
+5. Close Steam, `chmod 444` the `appmanifest_489830.acf` (above), start
+   Steam, then press Play on that shortcut.
 
 Steam's Proton then builds the steam bridge that umu could not.
 Reported result: the game spawned and connected.
 
-This replaces the `umu-run` launch (Step 4 and the Step 9 script). It does
+Only after umu has failed, this replaces the `umu-run` launch (Step 4 and the Step 9 script). It does
 not replace the downgrade, the mod manager, or the case fixes. Those still
 apply to the Skyrim tree the launcher points at. Steam creates its own
 `compatdata/` prefix for the shortcut — leave it. If the umu prefix's
@@ -84,7 +119,8 @@ the **Steam** Skyrim.
 
 - Do not press Play on **Skyrim Special Edition** in the Steam library.
   That is app 489830. Steam will update it off 1.6.1170. The non-Steam
-  shortcut is the launcher exe only.
+  shortcut is the launcher exe only — and even the shortcut can let Steam
+  update Skyrim, so keep the manifest locked.
 - Do not switch to distro Wine. The Electron launcher still needs Proton.
   The working runtime is still GE-Proton11-7 — Steam is just the thing that
   starts it.

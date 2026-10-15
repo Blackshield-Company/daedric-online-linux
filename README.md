@@ -1,3 +1,5 @@
+![daedric-online-linux](.github/preview.png)
+
 # Daedric Online on Linux — GE Proton / umu guide
 
 **Get the Daedric Online launcher running Skyrim Special Edition 1.6.1170 on
